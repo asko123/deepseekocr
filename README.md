@@ -43,7 +43,13 @@ The pipeline outputs JSON with the following schema:
           "table_data": [
             ["Header1", "Header2"],
             ["Data1", "Data2"]
-          ]
+          ],
+          "table_metadata": {
+            "rows": 2,
+            "columns": 2,
+            "is_complex": false,
+            "has_merged_cells": false
+          }
         },
         {
           "type": "image",
@@ -68,9 +74,17 @@ The pipeline outputs JSON with the following schema:
 - `coordinates`: Array of 4 integers [left, top, right, bottom]
 - `confidence`: Float between 0.0 and 1.0
 - `table_data`: 2D array (list of lists) present only when type is "table"
+- `table_metadata`: Object present only when type is "table" containing:
+  - `rows`: Integer count of table rows
+  - `columns`: Integer count of table columns
+  - `is_complex`: Boolean indicating complex structure (merged cells, nested tables, etc.)
+  - `has_merged_cells`: Boolean indicating presence of merged cells
 
 **Data Ordering:**
 Blocks appear in the original document reading order (top-to-bottom, left-to-right).
+
+**Complex Table Support:**
+The pipeline detects and handles complex table structures including merged cells, multi-row headers, and nested tables. Complex tables are flagged in `table_metadata.is_complex`.
 
 ## Error Reporting
 

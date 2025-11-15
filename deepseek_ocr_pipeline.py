@@ -78,7 +78,7 @@ class DeepSeekOCRPipeline:
         return {"valid": True}
     
     def parse_markdown_to_blocks(self, markdown_text: str, coordinates: List = None) -> List[Dict[str, Any]]:
-        """Parse markdown output into structured blocks."""
+        """Parse markdown output into structured blocks with enhanced table support."""
         blocks = []
         lines = markdown_text.split('\n')
         current_block = {"type": "text", "content": [], "confidence": 0.95}
@@ -100,21 +100,39 @@ class DeepSeekOCRPipeline:
                     in_table = True
                     table_rows = []
                 
-                # Parse table row
+                # Parse table row with enhanced cell detection
                 cells = [cell.strip() for cell in line.strip('|').split('|')]
+                
                 # Skip separator rows (e.g., |---|---|)
                 if not all(re.match(r'^-+$', cell.strip()) for cell in cells):
-                    table_rows.append(cells)
+                    # Detect potential merged cells (cells with extra spacing or special markers)
+                    parsed_cells = []
+                    for cell in cells:
+                        # Check for colspan indicators (e.g., "text ^^" or empty cells)
+                        if cell:
+                            parsed_cells.append(cell)
+                        else:
+                            # Empty cell might indicate continuation of previous cell
+                            parsed_cells.append("")
+                    table_rows.append(parsed_cells)
             else:
                 if in_table:
-                    # End of table, save it
-                    blocks.append({
+                    # End of table, save it with complexity analysis
+                    complexity_info = self._analyze_table_complexity(table_rows)
+                    table_block = {
                         "type": "table",
                         "content": self._format_table_as_text(table_rows),
                         "coordinates": coordinates or [0, 0, 0, 0],
                         "confidence": 0.90,
-                        "table_data": table_rows
-                    })
+                        "table_data": table_rows,
+                        "table_metadata": {
+                            "rows": complexity_info["num_rows"],
+                            "columns": complexity_info["num_cols"],
+                            "is_complex": complexity_info["is_complex"],
+                            "has_merged_cells": complexity_info["has_irregular_rows"] or complexity_info["empty_cell_ratio"] > 0.1
+                        }
+                    }
+                    blocks.append(table_block)
                     in_table = False
                     table_rows = []
                 
@@ -142,13 +160,21 @@ class DeepSeekOCRPipeline:
         
         # Handle any remaining table
         if in_table and table_rows:
-            blocks.append({
+            complexity_info = self._analyze_table_complexity(table_rows)
+            table_block = {
                 "type": "table",
                 "content": self._format_table_as_text(table_rows),
                 "coordinates": coordinates or [0, 0, 0, 0],
                 "confidence": 0.90,
-                "table_data": table_rows
-            })
+                "table_data": table_rows,
+                "table_metadata": {
+                    "rows": complexity_info["num_rows"],
+                    "columns": complexity_info["num_cols"],
+                    "is_complex": complexity_info["is_complex"],
+                    "has_merged_cells": complexity_info["has_irregular_rows"] or complexity_info["empty_cell_ratio"] > 0.1
+                }
+            }
+            blocks.append(table_block)
         
         # Handle any remaining text block
         if current_block["content"]:
@@ -166,6 +192,36 @@ class DeepSeekOCRPipeline:
         if not table_data:
             return ""
         return '\n'.join([' | '.join(row) for row in table_data])
+    
+    def _analyze_table_complexity(self, table_data: List[List[str]]) -> Dict[str, Any]:
+        """Analyze table structure to detect complexity."""
+        if not table_data:
+            return {"is_complex": False}
+        
+        num_rows = len(table_data)
+        num_cols = len(table_data[0]) if table_data else 0
+        
+        # Check for irregular row lengths (indication of merged cells)
+        row_lengths = [len(row) for row in table_data]
+        has_irregular_rows = len(set(row_lengths)) > 1
+        
+        # Check for empty cells (might indicate merged cells)
+        empty_cell_count = sum(1 for row in table_data for cell in row if not cell.strip())
+        empty_cell_ratio = empty_cell_count / (num_rows * num_cols) if (num_rows * num_cols) > 0 else 0
+        
+        # Detect potential nested structure (cells with multiple lines or formatting)
+        has_multiline_cells = any('\\n' in cell or len(cell) > 200 for row in table_data for cell in row)
+        
+        is_complex = has_irregular_rows or empty_cell_ratio > 0.1 or has_multiline_cells
+        
+        return {
+            "is_complex": is_complex,
+            "num_rows": num_rows,
+            "num_cols": num_cols,
+            "has_irregular_rows": has_irregular_rows,
+            "empty_cell_ratio": round(empty_cell_ratio, 2),
+            "has_multiline_cells": has_multiline_cells
+        }
     
     def _check_libreoffice(self) -> bool:
         """Check if LibreOffice is installed."""
@@ -202,12 +258,44 @@ class DeepSeekOCRPipeline:
                             content_parts.append(text)
                 
                 elif isinstance(element, CT_Tbl):
-                    # Table
+                    # Table - enhanced to handle complex structures
                     table = Table(element, doc)
                     table_text = []
-                    for row in table.rows:
-                        cells = [cell.text.strip() for cell in row.cells]
-                        table_text.append('| ' + ' | '.join(cells) + ' |')
+                    table_structure = []
+                    
+                    for row_idx, row in enumerate(table.rows):
+                        row_cells = []
+                        row_data = []
+                        for cell_idx, cell in enumerate(row.cells):
+                            cell_text = cell.text.strip()
+                            row_data.append(cell_text)
+                            
+                            # Check for merged cells by examining grid span
+                            try:
+                                tc = cell._element
+                                tcPr = tc.get_or_add_tcPr()
+                                grid_span = tcPr.gridSpan
+                                v_merge = tcPr.vMerge
+                                
+                                cell_info = {
+                                    "text": cell_text,
+                                    "colspan": grid_span.val if grid_span is not None else 1,
+                                    "rowspan_start": v_merge is not None and v_merge.val != "continue" if v_merge is not None else False,
+                                    "rowspan_continue": v_merge is not None and (v_merge.val == "continue" or v_merge.val is None) if v_merge is not None else False
+                                }
+                                row_cells.append(cell_info)
+                            except:
+                                # Fallback for cells without merge info
+                                row_cells.append({
+                                    "text": cell_text,
+                                    "colspan": 1,
+                                    "rowspan_start": False,
+                                    "rowspan_continue": False
+                                })
+                        
+                        table_structure.append(row_cells)
+                        table_text.append('| ' + ' | '.join(row_data) + ' |')
+                    
                     if table_text:
                         content_parts.append('\n'.join(table_text))
             
