@@ -93,7 +93,7 @@ Errors are returned in JSON format:
 ```
 
 ```json
-{"error": "LibreOffice not found. Install LibreOffice to process .doc/.docx files: brew install libreoffice (macOS) or apt-get install libreoffice (Linux)", "file": "document.docx"}
+{"error": "LibreOffice not available for .doc conversion. Please convert .doc to .docx format", "file": "document.doc"}
 ```
 
 ## System Requirements
@@ -107,27 +107,37 @@ Errors are returned in JSON format:
 - Python 3.12.9
 - CUDA 11.8
 - Linux or macOS (Windows not officially supported)
+- No admin/root access required for core functionality
+
+**Processing Methods:**
+- .docx files: Uses python-docx library (no admin required)
+- .doc files: Requires LibreOffice or conversion to .docx
+- PDF files: Uses poppler-utils (can be installed locally)
+- Images: Direct processing (no additional tools)
 
 ## Installation
 
 ```bash
 # Install CUDA 11.8 first (system-specific)
 
-# Install system dependencies
+# Install Poppler for PDF processing (no admin required on Linux)
+# For Linux without admin rights:
+# Download poppler binaries to your home directory from https://poppler.freedesktop.org/
+
 # For macOS:
-brew install poppler libreoffice
+brew install poppler
 
-# For Ubuntu/Debian:
-sudo apt-get install poppler-utils libreoffice
+# For Ubuntu/Debian with admin:
+sudo apt-get install poppler-utils
 
-# Install Python dependencies
-pip install torch==2.6.0 transformers==4.46.3 tokenizers==0.20.3 einops addict easydict flash-attn==2.7.3 Pillow pdf2image --no-build-isolation
+# Install Python dependencies (no admin required)
+pip install --user torch==2.6.0 transformers==4.46.3 tokenizers==0.20.3 einops addict easydict flash-attn==2.7.3 Pillow pdf2image python-docx olefile --no-build-isolation
 
 # Or use requirements file
-pip install -r requirements.txt --no-build-isolation
+pip install --user -r requirements.txt --no-build-isolation
 ```
 
-**Note:** LibreOffice is required for processing .doc and .docx files. PDF and image files work without it.
+**Note:** LibreOffice is optional. The pipeline uses `python-docx` for .docx files (no admin required). LibreOffice provides better formatting if available but is not required.
 
 ## Supported File Types
 
