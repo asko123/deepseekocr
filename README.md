@@ -92,6 +92,10 @@ Errors are returned in JSON format:
 {"error": "GPU out of memory. Try reducing image size or batch size."}
 ```
 
+```json
+{"error": "LibreOffice not found. Install LibreOffice to process .doc/.docx files: brew install libreoffice (macOS) or apt-get install libreoffice (Linux)", "file": "document.docx"}
+```
+
 ## System Requirements
 
 **Minimum Hardware:**
@@ -109,17 +113,26 @@ Errors are returned in JSON format:
 ```bash
 # Install CUDA 11.8 first (system-specific)
 
+# Install system dependencies
+# For macOS:
+brew install poppler libreoffice
+
+# For Ubuntu/Debian:
+sudo apt-get install poppler-utils libreoffice
+
 # Install Python dependencies
-pip install torch==2.6.0 transformers==4.46.3 tokenizers==0.20.3 einops addict easydict flash-attn==2.7.3 --no-build-isolation Pillow
+pip install torch==2.6.0 transformers==4.46.3 tokenizers==0.20.3 einops addict easydict flash-attn==2.7.3 Pillow pdf2image --no-build-isolation
 
 # Or use requirements file
 pip install -r requirements.txt --no-build-isolation
 ```
 
+**Note:** LibreOffice is required for processing .doc and .docx files. PDF and image files work without it.
+
 ## Supported File Types
 
 - Images: .jpg, .jpeg, .png, .bmp, .tiff
-- Documents: .pdf
+- Documents: .pdf, .doc, .docx
 
 ## Reference
 

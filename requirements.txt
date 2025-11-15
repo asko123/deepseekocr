@@ -6,4 +6,6 @@ addict
 easydict
 flash-attn==2.7.3
 Pillow>=10.0.0
+pdf2image>=1.16.0
+poppler-utils
 

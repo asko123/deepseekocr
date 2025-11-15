@@ -8,6 +8,9 @@ import os
 import json
 import argparse
 import sys
+import subprocess
+import tempfile
+import shutil
 from pathlib import Path
 from typing import Dict, List, Any, Optional
 import re
@@ -16,6 +19,7 @@ try:
     from transformers import AutoModel, AutoTokenizer
     import torch
     from PIL import Image
+    from pdf2image import convert_from_path
 except ImportError as e:
     print(json.dumps({"error": f"Missing required package: {str(e)}"}))
     sys.exit(1)
@@ -24,7 +28,7 @@ except ImportError as e:
 class DeepSeekOCRPipeline:
     """Main pipeline class for DeepSeek OCR processing."""
     
-    SUPPORTED_FORMATS = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.pdf'}
+    SUPPORTED_FORMATS = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.pdf', '.doc', '.docx'}
     
     def __init__(self, model_name: str = 'deepseek-ai/DeepSeek-OCR'):
         """Initialize the OCR pipeline with DeepSeek model."""
@@ -40,8 +44,14 @@ class DeepSeekOCRPipeline:
                 use_safetensors=True
             )
             self.model = self.model.eval().cuda().to(torch.bfloat16)
+            self.temp_dir = tempfile.mkdtemp(prefix='deepseek_ocr_')
         except Exception as e:
             raise RuntimeError(f"Failed to load model: {str(e)}")
+    
+    def __del__(self):
+        """Cleanup temporary directory on deletion."""
+        if hasattr(self, 'temp_dir') and os.path.exists(self.temp_dir):
+            shutil.rmtree(self.temp_dir, ignore_errors=True)
     
     def validate_file(self, file_path: str) -> Dict[str, Any]:
         """Validate input file format and existence."""
@@ -145,6 +155,93 @@ class DeepSeekOCRPipeline:
             return ""
         return '\n'.join([' | '.join(row) for row in table_data])
     
+    def _check_libreoffice(self) -> bool:
+        """Check if LibreOffice is installed."""
+        try:
+            result = subprocess.run(
+                ['soffice', '--version'],
+                capture_output=True,
+                timeout=5
+            )
+            return result.returncode == 0
+        except (subprocess.TimeoutExpired, FileNotFoundError):
+            return False
+    
+    def _convert_doc_to_pdf(self, doc_path: str) -> Optional[str]:
+        """Convert .doc or .docx file to PDF using LibreOffice."""
+        if not self._check_libreoffice():
+            raise RuntimeError(
+                "LibreOffice not found. Install LibreOffice to process .doc/.docx files: "
+                "brew install libreoffice (macOS) or apt-get install libreoffice (Linux)"
+            )
+        
+        try:
+            output_dir = self.temp_dir
+            # Convert to PDF using LibreOffice headless mode
+            subprocess.run(
+                [
+                    'soffice',
+                    '--headless',
+                    '--convert-to', 'pdf',
+                    '--outdir', output_dir,
+                    doc_path
+                ],
+                capture_output=True,
+                timeout=60,
+                check=True
+            )
+            
+            # Find the generated PDF
+            doc_filename = Path(doc_path).stem
+            pdf_path = Path(output_dir) / f"{doc_filename}.pdf"
+            
+            if pdf_path.exists():
+                return str(pdf_path)
+            else:
+                raise RuntimeError(f"PDF conversion failed for {doc_path}")
+                
+        except subprocess.TimeoutExpired:
+            raise RuntimeError(f"Document conversion timed out: {doc_path}")
+        except subprocess.CalledProcessError as e:
+            raise RuntimeError(f"Document conversion failed: {e.stderr.decode()}")
+    
+    def _convert_pdf_to_images(self, pdf_path: str) -> List[str]:
+        """Convert PDF pages to images."""
+        try:
+            images = convert_from_path(pdf_path, dpi=300)
+            image_paths = []
+            
+            for i, image in enumerate(images):
+                image_path = Path(self.temp_dir) / f"page_{i+1}.png"
+                image.save(str(image_path), 'PNG')
+                image_paths.append(str(image_path))
+            
+            return image_paths
+        except Exception as e:
+            raise RuntimeError(f"PDF to image conversion failed: {str(e)}")
+    
+    def _prepare_file_for_ocr(self, file_path: str) -> List[str]:
+        """Prepare file for OCR processing, converting Word docs if needed.
+        
+        Returns list of image paths to process.
+        """
+        file_ext = Path(file_path).suffix.lower()
+        
+        # Word documents need conversion
+        if file_ext in {'.doc', '.docx'}:
+            # Convert to PDF first
+            pdf_path = self._convert_doc_to_pdf(file_path)
+            # Then convert PDF to images
+            return self._convert_pdf_to_images(pdf_path)
+        
+        # PDF files can be converted to images for better processing
+        elif file_ext == '.pdf':
+            return self._convert_pdf_to_images(file_path)
+        
+        # Image files can be processed directly
+        else:
+            return [file_path]
+    
     def process_file(self, file_path: str, output_dir: str = None) -> Dict[str, Any]:
         """Process a single file through OCR pipeline."""
         # Validate file
@@ -159,40 +256,48 @@ class DeepSeekOCRPipeline:
             output_dir = Path(output_dir)
             output_dir.mkdir(parents=True, exist_ok=True)
             
+            # Prepare file for OCR (convert Word docs to images if needed)
+            image_paths = self._prepare_file_for_ocr(file_path)
+            
             # Prepare prompt for OCR
             prompt = "<image>\n<|grounding|>Convert the document to markdown. "
             
-            # Run OCR inference
-            result = self.model.infer(
-                self.tokenizer,
-                prompt=prompt,
-                image_file=str(file_path),
-                output_path=str(output_dir),
-                base_size=1024,
-                image_size=640,
-                crop_mode=True,
-                save_results=True,
-                test_compress=True
-            )
-            
-            # Parse result into structured format
-            markdown_content = result.get('text', '')
-            blocks = self.parse_markdown_to_blocks(markdown_content)
+            # Process each page/image
+            all_pages = []
+            for page_num, image_path in enumerate(image_paths, start=1):
+                # Run OCR inference
+                result = self.model.infer(
+                    self.tokenizer,
+                    prompt=prompt,
+                    image_file=image_path,
+                    output_path=str(output_dir),
+                    base_size=1024,
+                    image_size=640,
+                    crop_mode=True,
+                    save_results=True,
+                    test_compress=True
+                )
+                
+                # Parse result into structured format
+                markdown_content = result.get('text', '')
+                blocks = self.parse_markdown_to_blocks(markdown_content)
+                
+                all_pages.append({
+                    "page_number": page_num,
+                    "blocks": blocks
+                })
             
             # Structure output according to schema
             output = {
-                "pages": [
-                    {
-                        "page_number": 1,
-                        "blocks": blocks
-                    }
-                ]
+                "pages": all_pages
             }
             
             return output
             
         except torch.cuda.OutOfMemoryError:
             return {"error": "GPU out of memory. Try reducing image size or batch size."}
+        except RuntimeError as e:
+            return {"error": str(e), "file": file_path}
         except Exception as e:
             return {"error": f"OCR failed: {str(e)}", "file": file_path}
     
