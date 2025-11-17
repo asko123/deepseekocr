@@ -203,7 +203,9 @@ python test_model_load.py
 
 ## Documentation
 
-- [MANUAL_SETUP.md](MANUAL_SETUP.md) - Complete guide for downloading and setting up model files
+- [MANUAL_DOWNLOAD_GUIDE.md](MANUAL_DOWNLOAD_GUIDE.md) - **START HERE** - Step-by-step guide for manually downloading files via browser
+- [FILES_TO_DOWNLOAD.md](FILES_TO_DOWNLOAD.md) - Complete checklist of required files
+- [MANUAL_SETUP.md](MANUAL_SETUP.md) - Complete setup guide with all download methods
 - [COMPLEX_TABLES.md](COMPLEX_TABLES.md) - Guide for handling complex table structures
 - [test_model_load.py](test_model_load.py) - Verification script for model setup
 
