@@ -40,39 +40,44 @@ Download these files to `models/deepseek-ocr/`:
 
 **Essential Files:**
 1. `config.json` - Model configuration
-2. `modeling_deepseekocr.py` - Custom model implementation
+2. `modeling_deepseekocr.py` - Custom model implementation  
 3. `tokenizer_config.json` - Tokenizer configuration
-4. `tokenizer.model` or `vocab.json` - Tokenizer vocabulary
-5. `special_tokens_map.json` - Special tokens mapping
-6. Model weight files:
-   - `pytorch_model.bin` (single file), OR
-   - `pytorch_model-00001-of-xxxxx.bin` (sharded files)
-   - `model.safetensors` or sharded `.safetensors` files
+4. `preprocessor_config.json` - Preprocessor configuration
+5. Model weight files (safetensors format):
+   - `model.safetensors` (single file), OR
+   - `model-00001-of-xxxxx.safetensors` (sharded files)
 
-**Additional Files (if available):**
-- `generation_config.json`
-- `preprocessor_config.json`
-- `README.md`
+**Additional Files:**
+- `generation_config.json` - Generation parameters
+- `README.md` - Model documentation
+- `.gitattributes` - Git LFS configuration
+
+**Note:** DeepSeek-OCR uses transformers' built-in tokenizer. You do NOT need separate `tokenizer.model` or `vocab.json` files.
 
 ### Download Commands (wget alternative)
 
 ```bash
 cd models/deepseek-ocr
 
-# Download core files
+# Download core configuration files
 wget https://huggingface.co/deepseek-ai/DeepSeek-OCR/resolve/main/config.json
 wget https://huggingface.co/deepseek-ai/DeepSeek-OCR/resolve/main/modeling_deepseekocr.py
 wget https://huggingface.co/deepseek-ai/DeepSeek-OCR/resolve/main/tokenizer_config.json
-wget https://huggingface.co/deepseek-ai/DeepSeek-OCR/resolve/main/tokenizer.model
-wget https://huggingface.co/deepseek-ai/DeepSeek-OCR/resolve/main/special_tokens_map.json
+wget https://huggingface.co/deepseek-ai/DeepSeek-OCR/resolve/main/preprocessor_config.json
+wget https://huggingface.co/deepseek-ai/DeepSeek-OCR/resolve/main/generation_config.json
 
-# Download weight files (these are large - may take time)
-# Check the repo for the exact filenames
+# Download safetensors weight files (these are large - may take time)
+# For single file model:
 wget https://huggingface.co/deepseek-ai/DeepSeek-OCR/resolve/main/model.safetensors
-# OR for sharded models:
-# wget https://huggingface.co/deepseek-ai/DeepSeek-OCR/resolve/main/pytorch_model-00001-of-00003.bin
-# wget https://huggingface.co/deepseek-ai/DeepSeek-OCR/resolve/main/pytorch_model-00002-of-00003.bin
-# wget https://huggingface.co/deepseek-ai/DeepSeek-OCR/resolve/main/pytorch_model-00003-of-00003.bin
+
+# OR for sharded models (check the Files tab for actual filenames):
+# wget https://huggingface.co/deepseek-ai/DeepSeek-OCR/resolve/main/model-00001-of-00004.safetensors
+# wget https://huggingface.co/deepseek-ai/DeepSeek-OCR/resolve/main/model-00002-of-00004.safetensors
+# wget https://huggingface.co/deepseek-ai/DeepSeek-OCR/resolve/main/model-00003-of-00004.safetensors
+# wget https://huggingface.co/deepseek-ai/DeepSeek-OCR/resolve/main/model-00004-of-00004.safetensors
+
+# Note: Check https://huggingface.co/deepseek-ai/DeepSeek-OCR/tree/main 
+# for the actual number of shard files
 ```
 
 ## Step 3: Verify Downloaded Files
@@ -91,10 +96,13 @@ ls -lh
 Verify file integrity:
 
 ```bash
-# Check that weight files are not empty
-du -sh *.bin *.safetensors 2>/dev/null
+# Check that safetensors weight files are not empty
+du -sh *.safetensors 2>/dev/null
 
-# Should show files in GB range (e.g., 5.2G, 10.5G, etc.)
+# Should show files in GB range (e.g., 4.8G, 9.2G, etc.)
+
+# Verify core config files exist
+ls -lh config.json modeling_deepseekocr.py tokenizer_config.json preprocessor_config.json
 ```
 
 ## Step 4: Copy Custom Model Code
@@ -194,8 +202,16 @@ python deepseek_ocr_pipeline.py sample_document.jpg -o output/
 
 **Solution:**
 ```bash
-pip install --user safetensors>=0.3.0
+pip install --user safetensors>=0.4.0
 ```
+
+### Issue: "Tokenizer files not found"
+
+**Solution:** DeepSeek-OCR uses the transformers library's built-in tokenizer. You only need:
+- `tokenizer_config.json` 
+- `preprocessor_config.json`
+
+You do NOT need `tokenizer.model` or `vocab.json` files.
 
 ### Issue: "Flash attention not found"
 
@@ -219,9 +235,10 @@ model = AutoModel.from_pretrained(
 - [ ] Model directory exists: `models/deepseek-ocr/`
 - [ ] Config file present: `config.json`
 - [ ] Model code present: `modeling_deepseekocr.py`
-- [ ] Tokenizer files present
-- [ ] Weight files downloaded (several GB)
-- [ ] Dependencies installed
+- [ ] Tokenizer config present: `tokenizer_config.json`
+- [ ] Preprocessor config present: `preprocessor_config.json`
+- [ ] Safetensors weight files downloaded (several GB)
+- [ ] Dependencies installed (including safetensors>=0.4.0)
 - [ ] Test script runs without errors
 - [ ] Pipeline processes sample document
 
@@ -236,10 +253,10 @@ deepseekocr/
 │       ├── config.json
 │       ├── modeling_deepseekocr.py
 │       ├── tokenizer_config.json
-│       ├── tokenizer.model
-│       ├── special_tokens_map.json
-│       ├── model.safetensors (or pytorch_model*.bin)
-│       └── ... (other model files)
+│       ├── preprocessor_config.json
+│       ├── generation_config.json
+│       ├── model.safetensors (or model-xxxxx-of-xxxxx.safetensors)
+│       └── README.md
 ├── deepseek_ocr_pipeline.py
 ├── requirements.txt
 ├── README.md

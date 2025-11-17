@@ -26,31 +26,40 @@ def test_model_loading(model_path='./models/deepseek-ocr'):
     print(f"✓ Model directory found: {model_path}")
     
     # Check for required files
-    required_files = ['config.json', 'modeling_deepseekocr.py']
+    required_files = {
+        'config.json': 'Model configuration',
+        'modeling_deepseekocr.py': 'Custom model code',
+        'tokenizer_config.json': 'Tokenizer configuration',
+        'preprocessor_config.json': 'Preprocessor configuration'
+    }
     missing_files = []
     
-    for file in required_files:
+    for file, description in required_files.items():
         file_path = model_dir / file
         if file_path.exists():
-            print(f"✓ Found: {file}")
+            print(f"✓ Found: {file} ({description})")
         else:
-            print(f"❌ Missing: {file}")
+            print(f"❌ Missing: {file} ({description})")
             missing_files.append(file)
     
     if missing_files:
         print(f"\n❌ Missing required files. Please download from HuggingFace.")
         sys.exit(1)
     
-    # Check for weight files
-    weight_files = list(model_dir.glob("*.bin")) + list(model_dir.glob("*.safetensors"))
+    # Check for safetensors weight files only
+    weight_files = list(model_dir.glob("*.safetensors"))
     if weight_files:
-        print(f"✓ Found {len(weight_files)} weight file(s)")
+        print(f"✓ Found {len(weight_files)} safetensors weight file(s)")
+        total_size = 0
         for wf in weight_files:
             size_gb = wf.stat().st_size / (1024**3)
+            total_size += size_gb
             print(f"  - {wf.name} ({size_gb:.2f} GB)")
+        print(f"  Total size: {total_size:.2f} GB")
     else:
-        print("❌ No weight files found (.bin or .safetensors)")
-        print("   Please download model weights from HuggingFace")
+        print("❌ No safetensors weight files found")
+        print("   Please download model-*.safetensors files from HuggingFace")
+        print("   Visit: https://huggingface.co/deepseek-ai/DeepSeek-OCR/tree/main")
         sys.exit(1)
     
     print("\n" + "-" * 60)
