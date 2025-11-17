@@ -42,20 +42,51 @@ class DeepSeekOCRPipeline:
     
     SUPPORTED_FORMATS = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.pdf', '.doc', '.docx'}
     
-    def __init__(self, model_name: str = 'deepseek-ai/DeepSeek-OCR'):
-        """Initialize the OCR pipeline with DeepSeek model."""
+    def __init__(self, model_path: str = './models/deepseek-ocr', use_flash_attn: bool = True):
+        """Initialize the OCR pipeline with DeepSeek model.
+        
+        Args:
+            model_path: Path to model directory (local) or HuggingFace model ID
+                       Default: './models/deepseek-ocr' for local setup
+                       Alternative: 'deepseek-ai/DeepSeek-OCR' for auto-download
+            use_flash_attn: Whether to use flash attention (requires flash-attn package)
+        """
         try:
+            print(f"Loading model from: {model_path}")
+            
+            # Check if local path exists
+            local_path = Path(model_path)
+            if local_path.exists():
+                print("✓ Found local model directory")
+                model_location = str(local_path)
+            else:
+                print(f"⚠ Local path not found, will attempt download from HuggingFace")
+                model_location = model_path
+            
             self.tokenizer = AutoTokenizer.from_pretrained(
-                model_name, 
+                model_location, 
                 trust_remote_code=True
             )
+            print("✓ Tokenizer loaded")
+            
+            # Prepare model loading arguments
+            model_kwargs = {
+                'trust_remote_code': True,
+                'use_safetensors': True
+            }
+            
+            if use_flash_attn:
+                model_kwargs['_attn_implementation'] = 'flash_attention_2'
+            
             self.model = AutoModel.from_pretrained(
-                model_name,
-                _attn_implementation='flash_attention_2',
-                trust_remote_code=True,
-                use_safetensors=True
+                model_location,
+                **model_kwargs
             )
+            print("✓ Model loaded")
+            
             self.model = self.model.eval().cuda().to(torch.bfloat16)
+            print("✓ Model moved to GPU")
+            
             self.temp_dir = tempfile.mkdtemp(prefix='deepseek_ocr_')
         except Exception as e:
             raise RuntimeError(f"Failed to load model: {str(e)}")
@@ -608,12 +639,26 @@ def main():
         default=None,
         help='Path to save JSON output (default: stdout)'
     )
+    parser.add_argument(
+        '--model-path',
+        type=str,
+        default='./models/deepseek-ocr',
+        help='Path to model directory or HuggingFace model ID (default: ./models/deepseek-ocr)'
+    )
+    parser.add_argument(
+        '--no-flash-attn',
+        action='store_true',
+        help='Disable flash attention (use if flash-attn package unavailable)'
+    )
     
     args = parser.parse_args()
     
     # Initialize pipeline
     try:
-        pipeline = DeepSeekOCRPipeline()
+        pipeline = DeepSeekOCRPipeline(
+            model_path=args.model_path,
+            use_flash_attn=not args.no_flash_attn
+        )
     except Exception as e:
         print(json.dumps({"error": f"Failed to initialize pipeline: {str(e)}"}))
         sys.exit(1)

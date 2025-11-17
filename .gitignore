@@ -37,9 +37,11 @@ ocr_output/
 *.json
 results/
 
-# Model Cache
+# Model Cache and Downloaded Models
 .cache/
 models/
+*.bin
+*.safetensors
 
 # OS
 .DS_Store

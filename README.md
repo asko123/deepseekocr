@@ -9,15 +9,28 @@ This pipeline processes document files through DeepSeek OCR to extract structure
 ## Usage
 
 ```bash
-# Process single file
+# Process single file (using local model)
 python deepseek_ocr_pipeline.py input_document.jpg -o output_directory
+
+# Specify custom model path
+python deepseek_ocr_pipeline.py input.pdf --model-path ./models/deepseek-ocr
 
 # Process directory of files
 python deepseek_ocr_pipeline.py documents/ -o output_directory --json-output results.json
 
+# Disable flash attention if unavailable
+python deepseek_ocr_pipeline.py input.jpg --no-flash-attn
+
 # Output to stdout
 python deepseek_ocr_pipeline.py input.pdf
 ```
+
+**CLI Options:**
+- `input`: File or directory to process (required)
+- `-o, --output`: Output directory (default: ./ocr_output)
+- `--json-output`: Save results to JSON file
+- `--model-path`: Path to model directory (default: ./models/deepseek-ocr)
+- `--no-flash-attn`: Disable flash attention
 
 ## Output Format
 
@@ -131,6 +144,8 @@ Errors are returned in JSON format:
 
 ## Installation
 
+### Step 1: Install System Dependencies
+
 ```bash
 # Install CUDA 11.8 first (system-specific)
 
@@ -143,12 +158,40 @@ brew install poppler
 
 # For Ubuntu/Debian with admin:
 sudo apt-get install poppler-utils
+```
 
+### Step 2: Install Python Dependencies
+
+```bash
 # Install Python dependencies (no admin required)
 pip install --user torch==2.6.0 transformers==4.46.3 tokenizers==0.20.3 einops addict easydict flash-attn==2.7.3 Pillow pdf2image python-docx olefile --no-build-isolation
 
 # Or use requirements file
 pip install --user -r requirements.txt --no-build-isolation
+```
+
+### Step 3: Download Model Files
+
+**Important:** Due to model size and access requirements, you must manually download the model files.
+
+See [MANUAL_SETUP.md](MANUAL_SETUP.md) for complete step-by-step instructions.
+
+**Quick Setup:**
+
+```bash
+# Create model directory
+mkdir -p models/deepseek-ocr
+
+# Option A: Clone with Git LFS (recommended)
+cd models/deepseek-ocr
+git lfs install
+git clone https://huggingface.co/deepseek-ai/DeepSeek-OCR .
+
+# Option B: Use HuggingFace CLI
+huggingface-cli download deepseek-ai/DeepSeek-OCR --local-dir ./models/deepseek-ocr
+
+# Verify installation
+python test_model_load.py
 ```
 
 **Note:** LibreOffice is optional. The pipeline uses `python-docx` for .docx files (no admin required). LibreOffice provides better formatting if available but is not required.
@@ -158,8 +201,15 @@ pip install --user -r requirements.txt --no-build-isolation
 - Images: .jpg, .jpeg, .png, .bmp, .tiff
 - Documents: .pdf, .doc, .docx
 
+## Documentation
+
+- [MANUAL_SETUP.md](MANUAL_SETUP.md) - Complete guide for downloading and setting up model files
+- [COMPLEX_TABLES.md](COMPLEX_TABLES.md) - Guide for handling complex table structures
+- [test_model_load.py](test_model_load.py) - Verification script for model setup
+
 ## Reference
 
 - Model: [DeepSeek-OCR on HuggingFace](https://huggingface.co/deepseek-ai/DeepSeek-OCR)
+- Model Code: [modeling_deepseekocr.py](https://huggingface.co/deepseek-ai/DeepSeek-OCR/blob/main/modeling_deepseekocr.py)
 - Paper: [arXiv:2510.18234](https://arxiv.org/pdf/2510.18234)
 
