@@ -42,7 +42,48 @@ class DeepSeekOCRPipeline:
     
     SUPPORTED_FORMATS = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff', '.pdf', '.doc', '.docx'}
     
-    def __init__(self, model_path: str = './models/deepseek-ocr', use_flash_attn: bool = True):
+    @staticmethod
+    def check_model_files(model_path: str) -> dict:
+        """Check if model files exist in the specified path.
+        
+        Returns dict with 'exists' boolean and 'missing_files' list.
+        """
+        model_dir = Path(model_path)
+        
+        if not model_dir.exists():
+            return {
+                'exists': False,
+                'missing_files': ['entire directory'],
+                'message': f"Model directory not found: {model_path}"
+            }
+        
+        required_files = [
+            'config.json',
+            'modeling_deepseekocr.py',
+            'tokenizer_config.json',
+            'preprocessor_config.json'
+        ]
+        
+        missing_files = []
+        for file in required_files:
+            if not (model_dir / file).exists():
+                missing_files.append(file)
+        
+        # Check for safetensors files
+        safetensors = list(model_dir.glob("*.safetensors"))
+        if not safetensors:
+            missing_files.append("*.safetensors (weight files)")
+        
+        if missing_files:
+            return {
+                'exists': False,
+                'missing_files': missing_files,
+                'message': f"Missing required files in {model_path}"
+            }
+        
+        return {'exists': True, 'missing_files': [], 'message': 'All files present'}
+    
+    def __init__(self, model_path: str = './models/deepseek-ocr', use_flash_attn: bool = True, auto_download: bool = False):
         """Initialize the OCR pipeline with DeepSeek model.
         
         Args:
@@ -50,18 +91,51 @@ class DeepSeekOCRPipeline:
                        Default: './models/deepseek-ocr' for local setup
                        Alternative: 'deepseek-ai/DeepSeek-OCR' for auto-download
             use_flash_attn: Whether to use flash attention (requires flash-attn package)
+            auto_download: If True, automatically download model if not found locally
         """
         try:
             print(f"Loading model from: {model_path}")
             
-            # Check if local path exists
+            # Check if local path exists and has all required files
             local_path = Path(model_path)
-            if local_path.exists():
-                print("✓ Found local model directory")
-                model_location = str(local_path)
-            else:
-                print(f"⚠ Local path not found, will attempt download from HuggingFace")
-                model_location = model_path
+            model_check = self.check_model_files(str(local_path))
+            
+            if not model_check['exists']:
+                if auto_download and model_path == './models/deepseek-ocr':
+                    print(f"\n⚠ {model_check['message']}")
+                    print("Missing files:", model_check['missing_files'])
+                    print("\nAttempting automatic download...")
+                    
+                    try:
+                        from huggingface_hub import snapshot_download
+                        print(f"Downloading model to {model_path}...")
+                        snapshot_download(
+                            "deepseek-ai/DeepSeek-OCR",
+                            local_dir=model_path,
+                            local_dir_use_symlinks=False
+                        )
+                        print("✓ Model downloaded successfully")
+                    except ImportError:
+                        raise RuntimeError(
+                            "huggingface_hub not installed. Run: pip install --user huggingface-hub"
+                        )
+                    except Exception as e:
+                        raise RuntimeError(f"Auto-download failed: {str(e)}")
+                else:
+                    error_msg = f"\n{'='*60}\n"
+                    error_msg += f"❌ Model files not found!\n"
+                    error_msg += f"{'='*60}\n"
+                    error_msg += f"Location checked: {model_path}\n"
+                    error_msg += f"Missing: {', '.join(model_check['missing_files'])}\n\n"
+                    error_msg += "To download the model, run:\n"
+                    error_msg += "  python download_model.py\n\n"
+                    error_msg += "Or use auto-download:\n"
+                    error_msg += f"  python deepseek_ocr_pipeline.py <file> --auto-download\n"
+                    error_msg += f"{'='*60}\n"
+                    raise RuntimeError(error_msg)
+            
+            print("✓ Found local model directory")
+            model_location = str(local_path)
             
             self.tokenizer = AutoTokenizer.from_pretrained(
                 model_location, 
@@ -76,7 +150,11 @@ class DeepSeekOCRPipeline:
             }
             
             if use_flash_attn:
-                model_kwargs['_attn_implementation'] = 'flash_attention_2'
+                try:
+                    model_kwargs['_attn_implementation'] = 'flash_attention_2'
+                except:
+                    print("⚠ Flash attention not available, using standard attention")
+                    pass
             
             self.model = AutoModel.from_pretrained(
                 model_location,
@@ -88,6 +166,8 @@ class DeepSeekOCRPipeline:
             print("✓ Model moved to GPU")
             
             self.temp_dir = tempfile.mkdtemp(prefix='deepseek_ocr_')
+        except RuntimeError:
+            raise
         except Exception as e:
             raise RuntimeError(f"Failed to load model: {str(e)}")
     
@@ -650,6 +730,11 @@ def main():
         action='store_true',
         help='Disable flash attention (use if flash-attn package unavailable)'
     )
+    parser.add_argument(
+        '--auto-download',
+        action='store_true',
+        help='Automatically download model if not found locally'
+    )
     
     args = parser.parse_args()
     
@@ -657,8 +742,13 @@ def main():
     try:
         pipeline = DeepSeekOCRPipeline(
             model_path=args.model_path,
-            use_flash_attn=not args.no_flash_attn
+            use_flash_attn=not args.no_flash_attn,
+            auto_download=args.auto_download
         )
+    except RuntimeError as e:
+        # RuntimeError includes formatted error messages, print them directly
+        print(str(e))
+        sys.exit(1)
     except Exception as e:
         print(json.dumps({"error": f"Failed to initialize pipeline: {str(e)}"}))
         sys.exit(1)

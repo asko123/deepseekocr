@@ -12,14 +12,17 @@ This pipeline processes document files through DeepSeek OCR to extract structure
 # Process single file (using local model)
 python deepseek_ocr_pipeline.py input_document.jpg -o output_directory
 
-# Specify custom model path
-python deepseek_ocr_pipeline.py input.pdf --model-path ./models/deepseek-ocr
+# Auto-download model if not present (first time only)
+python deepseek_ocr_pipeline.py input.jpg --auto-download --no-flash-attn
 
 # Process directory of files
 python deepseek_ocr_pipeline.py documents/ -o output_directory --json-output results.json
 
 # Disable flash attention if unavailable
 python deepseek_ocr_pipeline.py input.jpg --no-flash-attn
+
+# Specify custom model path
+python deepseek_ocr_pipeline.py input.pdf --model-path ./models/deepseek-ocr
 
 # Output to stdout
 python deepseek_ocr_pipeline.py input.pdf
@@ -31,6 +34,7 @@ python deepseek_ocr_pipeline.py input.pdf
 - `--json-output`: Save results to JSON file
 - `--model-path`: Path to model directory (default: ./models/deepseek-ocr)
 - `--no-flash-attn`: Disable flash attention
+- `--auto-download`: Automatically download model if not found
 
 ## Output Format
 
