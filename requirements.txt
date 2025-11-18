@@ -5,9 +5,10 @@ safetensors>=0.4.0
 einops
 addict
 easydict
-flash-attn==2.7.3
+# flash-attn==2.7.3  # Optional: Uncomment if you have compatible CUDA/GPU setup
 Pillow>=10.0.0
 pdf2image>=1.16.0
 python-docx>=0.8.11
 olefile>=0.46
+torchvision>=0.21.0
 

@@ -213,22 +213,22 @@ pip install --user safetensors>=0.4.0
 
 You do NOT need `tokenizer.model` or `vocab.json` files.
 
-### Issue: "Flash attention not found"
+### Issue: "Flash attention not found" or Installation Fails
 
-**Solution:**
+**Solution:** Flash attention is optional. You have two options:
+
+**Option 1: Skip flash-attn (Recommended)**
+```bash
+# Run pipeline without flash attention
+python deepseek_ocr_pipeline.py document.pdf --no-flash-attn
+```
+
+**Option 2: Try installing (requires CUDA 11.8 + GPU)**
 ```bash
 pip install --user flash-attn==2.7.3 --no-build-isolation
 ```
 
-If flash-attn fails to install, you can modify the code to use standard attention:
-```python
-model = AutoModel.from_pretrained(
-    model_path,
-    # _attn_implementation='flash_attention_2',  # Comment this out
-    trust_remote_code=True,
-    use_safetensors=True
-)
-```
+If installation fails with compilation errors, use Option 1. The model works fine without flash attention, just slightly slower.
 
 ## Verification Checklist
 

@@ -163,12 +163,15 @@ sudo apt-get install poppler-utils
 ### Step 2: Install Python Dependencies
 
 ```bash
-# Install Python dependencies (no admin required)
-pip install --user torch==2.6.0 transformers==4.46.3 tokenizers==0.20.3 einops addict easydict flash-attn==2.7.3 Pillow pdf2image python-docx olefile --no-build-isolation
+# Install core dependencies (no admin required)
+pip install --user -r requirements.txt
 
-# Or use requirements file
-pip install --user -r requirements.txt --no-build-isolation
+# Optional: Install flash-attn for better performance (requires CUDA/GPU)
+# Skip this if you get compilation errors - the pipeline works without it
+pip install --user flash-attn==2.7.3 --no-build-isolation
 ```
+
+**Note:** If flash-attn installation fails, that's OK! Use the `--no-flash-attn` flag when running the pipeline.
 
 ### Step 3: Download Model Files
 
