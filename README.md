@@ -175,23 +175,29 @@ pip install --user flash-attn==2.7.3 --no-build-isolation
 
 ### Step 3: Download Model Files
 
-**Important:** Due to model size and access requirements, you must manually download the model files.
-
-See [MANUAL_SETUP.md](MANUAL_SETUP.md) for complete step-by-step instructions.
-
-**Quick Setup:**
+**Automatic Download (Recommended):**
 
 ```bash
-# Create model directory
-mkdir -p models/deepseek-ocr
+# Run the download script (downloads everything automatically)
+python download_model.py
 
-# Option A: Clone with Git LFS (recommended)
+# This downloads ~20-25GB of files to ./models/deepseek-ocr/
+# Downloads can be interrupted and resumed
+```
+
+**Alternative Methods:**
+
+See [MANUAL_SETUP.md](MANUAL_SETUP.md) for manual download instructions.
+
+```bash
+# Option A: Use HuggingFace CLI
+pip install --user huggingface-hub
+huggingface-cli download deepseek-ai/DeepSeek-OCR --local-dir ./models/deepseek-ocr
+
+# Option B: Clone with Git LFS
 cd models/deepseek-ocr
 git lfs install
 git clone https://huggingface.co/deepseek-ai/DeepSeek-OCR .
-
-# Option B: Use HuggingFace CLI
-huggingface-cli download deepseek-ai/DeepSeek-OCR --local-dir ./models/deepseek-ocr
 
 # Verify installation
 python test_model_load.py
@@ -206,7 +212,8 @@ python test_model_load.py
 
 ## Documentation
 
-- [MANUAL_DOWNLOAD_GUIDE.md](MANUAL_DOWNLOAD_GUIDE.md) - **START HERE** - Step-by-step guide for manually downloading files via browser
+- [download_model.py](download_model.py) - **EASIEST** - Automated model download script
+- [MANUAL_DOWNLOAD_GUIDE.md](MANUAL_DOWNLOAD_GUIDE.md) - Step-by-step guide for manually downloading files via browser
 - [FILES_TO_DOWNLOAD.md](FILES_TO_DOWNLOAD.md) - Complete checklist of required files
 - [MANUAL_SETUP.md](MANUAL_SETUP.md) - Complete setup guide with all download methods
 - [COMPLEX_TABLES.md](COMPLEX_TABLES.md) - Guide for handling complex table structures

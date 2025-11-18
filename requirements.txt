@@ -11,4 +11,5 @@ pdf2image>=1.16.0
 python-docx>=0.8.11
 olefile>=0.46
 torchvision>=0.21.0
+huggingface-hub>=0.20.0
 
