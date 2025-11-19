@@ -379,8 +379,6 @@ class DeepSeekOCRPipeline:
             
             # Detect markdown table rows (format: | col1 | col2 |)
             if line.strip().startswith('|') and line.strip().endswith('|'):
-            # Detect table rows (markdown format: | col1 | col2 |)
-            if line.strip().startswith('|') and line.strip().endswith('|'):
                 if not in_table:
                     if current_block["content"]:
                         blocks.append({
