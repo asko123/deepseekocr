@@ -185,7 +185,7 @@ pip install --user flash-attn==2.7.3 --no-build-isolation
 # Run the download script (downloads everything automatically)
 python download_model.py
 
-# This downloads ~20-25GB of files to ./models/deepseek-ocr/
+# This downloads ~20-25GB of files to ./deepseek-ocr/
 # Downloads can be interrupted and resumed
 ```
 

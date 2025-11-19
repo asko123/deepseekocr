@@ -83,7 +83,7 @@ class DeepSeekOCRPipeline:
         
         return {'exists': True, 'missing_files': [], 'message': 'All files present'}
     
-    def __init__(self, model_path: str = './models/deepseek-ocr', use_flash_attn: bool = True, auto_download: bool = False):
+    def __init__(self, model_path: str = './deepseek-ocr', use_flash_attn: bool = True, auto_download: bool = False):
         """Initialize the OCR pipeline with DeepSeek model.
         
         Args:
@@ -101,7 +101,7 @@ class DeepSeekOCRPipeline:
             model_check = self.check_model_files(str(local_path))
             
             if not model_check['exists']:
-                if auto_download and model_path == './models/deepseek-ocr':
+                if auto_download and model_path == './deepseek-ocr':
                     print(f"\n⚠ {model_check['message']}")
                     print("Missing files:", model_check['missing_files'])
                     print("\nAttempting automatic download...")
@@ -722,8 +722,8 @@ def main():
     parser.add_argument(
         '--model-path',
         type=str,
-        default='./models/deepseek-ocr',
-        help='Path to model directory or HuggingFace model ID (default: ./models/deepseek-ocr)'
+        default='./deepseek-ocr',
+        help='Path to model directory or HuggingFace model ID (default: ./deepseek-ocr)'
     )
     parser.add_argument(
         '--no-flash-attn',

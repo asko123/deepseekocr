@@ -16,7 +16,7 @@ except ImportError:
     sys.exit(1)
 
 
-def download_deepseek_ocr(local_dir='./models/deepseek-ocr', resume=True):
+def download_deepseek_ocr(local_dir='./deepseek-ocr', resume=True):
     """
     Download DeepSeek OCR model from HuggingFace.
     
@@ -144,8 +144,8 @@ if __name__ == "__main__":
     parser.add_argument(
         '--local-dir',
         type=str,
-        default='./models/deepseek-ocr',
-        help='Local directory to save the model (default: ./models/deepseek-ocr)'
+        default='./deepseek-ocr',
+        help='Local directory to save the model (default: ./deepseek-ocr)'
     )
     parser.add_argument(
         '--no-resume',
