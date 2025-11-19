@@ -912,7 +912,25 @@ class DeepSeekOCRPipeline:
                         
                         # If no blocks parsed, fall back to markdown parsing
                         if not blocks:
+                            print("Warning: Grounded parsing returned no blocks, trying markdown fallback...")
                             blocks = self.parse_markdown_to_blocks(markdown_content)
+                        
+                        # If still no blocks, create a single text block with all content
+                        if not blocks and markdown_content:
+                            print("Warning: All parsing failed, creating single text block with raw content")
+                            # Remove all grounding markers for raw output
+                            clean_content = re.sub(r'<\|ref\|>[^<]+</ref\|>', '', markdown_content)
+                            clean_content = re.sub(r'<\|det\|>[^<]+</\|det\|>', '', clean_content)
+                            clean_content = clean_content.strip()
+                            
+                            if clean_content:
+                                blocks.append({
+                                    "type": "text",
+                                    "content": clean_content,
+                                    "coordinates": [0, 0, 0, 0],
+                                    "confidence": 0.70,
+                                    "note": "Raw content - parsing failed"
+                                })
                     except:
                         # If OCR fails on text image, use direct blocks
                         blocks = [{
@@ -959,7 +977,25 @@ class DeepSeekOCRPipeline:
                     
                     # If no blocks parsed, fall back to markdown parsing
                     if not blocks:
+                        print("Warning: Grounded parsing returned no blocks, trying markdown fallback...")
                         blocks = self.parse_markdown_to_blocks(markdown_content)
+                    
+                    # If still no blocks, create a single text block with all content
+                    if not blocks and markdown_content:
+                        print("Warning: All parsing failed, creating single text block with raw content")
+                        # Remove all grounding markers for raw output
+                        clean_content = re.sub(r'<\|ref\|>[^<]+</ref\|>', '', markdown_content)
+                        clean_content = re.sub(r'<\|det\|>[^<]+</\|det\|>', '', clean_content)
+                        clean_content = clean_content.strip()
+                        
+                        if clean_content:
+                            blocks.append({
+                                "type": "text",
+                                "content": clean_content,
+                                "coordinates": [0, 0, 0, 0],
+                                "confidence": 0.70,
+                                "note": "Raw content - parsing failed"
+                            })
                     
                     all_pages.append({
                         "page_number": page_num,
