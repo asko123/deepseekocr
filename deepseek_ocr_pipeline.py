@@ -286,73 +286,101 @@ class DeepSeekOCRPipeline:
         if not text:
             return blocks
         
-        # Pattern to match grounded blocks:
-        # <|ref|>type</ref|><|det|>[[x,y,w,h]]</|det|>\nContent
-        pattern = r'<\|ref\|>([^<]+)</ref\|><\|det\|>(\[\[[^\]]+\]\])</\|det\|>\s*\n\s*([^\n<]+(?:\n(?!<\|ref\|>)[^\n<]*)*)'
+        # Split by grounding marker pattern to get segments
+        # Pattern: <|ref|>type</ref|><|det|>[[coords]]</|det|>
+        parts = re.split(r'(<\|ref\|>[^<]+</ref\|><\|det\|>\[\[[^\]]+\]\]</\|det\|>)', text)
         
-        matches = re.finditer(pattern, text, re.MULTILINE)
-        
-        for match in matches:
-            block_type = match.group(1).strip()
-            coordinates_str = match.group(2)
-            content = match.group(3).strip()
+        i = 0
+        while i < len(parts):
+            part = parts[i]
             
-            # Parse coordinates [[x, y, w, h]]
-            try:
-                coords = eval(coordinates_str)
-                if isinstance(coords, list) and len(coords) > 0:
-                    coords = coords[0] if isinstance(coords[0], list) else coords
-            except:
-                coords = [0, 0, 0, 0]
+            # Check if this part is a grounding marker
+            marker_match = re.match(r'<\|ref\|>([^<]+)</ref\|><\|det\|>(\[\[[^\]]+\]\])</\|det\|>', part)
             
-            # Map block types
-            if block_type in ['title', 'sub_title', 'text', 'paragraph']:
-                blocks.append({
-                    "type": "text",
-                    "content": content,
-                    "coordinates": coords,
-                    "confidence": 0.95
-                })
-            elif block_type == 'table':
-                # Content might be HTML table or markdown
-                if content.startswith('<table>'):
-                    table_data = self._parse_html_table_to_data(content)
-                    complexity_info = self._analyze_table_complexity(table_data)
+            if marker_match:
+                block_type = marker_match.group(1).strip()
+                coordinates_str = marker_match.group(2)
+                
+                # The content is in the next part
+                content = ""
+                if i + 1 < len(parts):
+                    content = parts[i + 1].strip()
+                    # Remove leading/trailing empty lines
+                    content = content.strip('\n')
+                
+                # Parse coordinates [[x, y, w, h]]
+                try:
+                    coords = eval(coordinates_str)
+                    if isinstance(coords, list) and len(coords) > 0:
+                        coords = coords[0] if isinstance(coords[0], list) else coords
+                except:
+                    coords = [0, 0, 0, 0]
+                
+                # Skip if no content
+                if not content:
+                    i += 2
+                    continue
+                
+                # Map block types
+                if block_type in ['title', 'sub_title', 'text', 'paragraph', 'header']:
                     blocks.append({
-                        "type": "table",
-                        "content": self._format_table_as_text(table_data),
+                        "type": "text",
+                        "content": content,
                         "coordinates": coords,
-                        "confidence": 0.90,
-                        "table_data": table_data,
-                        "table_metadata": {
-                            "rows": complexity_info["num_rows"],
-                            "columns": complexity_info["num_cols"],
-                            "is_complex": complexity_info["is_complex"],
-                            "has_merged_cells": complexity_info["has_irregular_rows"] or complexity_info["empty_cell_ratio"] > 0.1
-                        }
+                        "confidence": 0.95
                     })
-                else:
+                elif block_type == 'table':
+                    # Content might be HTML table or markdown
+                    if '<table>' in content:
+                        table_data = self._parse_html_table_to_data(content)
+                        if table_data:
+                            complexity_info = self._analyze_table_complexity(table_data)
+                            blocks.append({
+                                "type": "table",
+                                "content": self._format_table_as_text(table_data),
+                                "coordinates": coords,
+                                "confidence": 0.90,
+                                "table_data": table_data,
+                                "table_metadata": {
+                                    "rows": complexity_info["num_rows"],
+                                    "columns": complexity_info["num_cols"],
+                                    "is_complex": complexity_info["is_complex"],
+                                    "has_merged_cells": complexity_info["has_irregular_rows"] or complexity_info["empty_cell_ratio"] > 0.1
+                                }
+                            })
+                    else:
+                        blocks.append({
+                            "type": "text",
+                            "content": content,
+                            "coordinates": coords,
+                            "confidence": 0.90
+                        })
+                elif block_type in ['image', 'figure']:
+                    blocks.append({
+                        "type": "image",
+                        "content": content if content else "Image block",
+                        "coordinates": coords,
+                        "confidence": 0.85
+                    })
+                elif block_type == 'image_caption':
                     blocks.append({
                         "type": "text",
                         "content": content,
                         "coordinates": coords,
                         "confidence": 0.90
                     })
-            elif block_type in ['image', 'figure', 'image_caption']:
-                blocks.append({
-                    "type": "image",
-                    "content": content,
-                    "coordinates": coords,
-                    "confidence": 0.85
-                })
+                else:
+                    # Unknown type, treat as text
+                    blocks.append({
+                        "type": "text",
+                        "content": content,
+                        "coordinates": coords,
+                        "confidence": 0.80
+                    })
+                
+                i += 2  # Skip the marker and content parts
             else:
-                # Unknown type, treat as text
-                blocks.append({
-                    "type": "text",
-                    "content": content,
-                    "coordinates": coords,
-                    "confidence": 0.80
-                })
+                i += 1
         
         return blocks
     
