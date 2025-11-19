@@ -272,26 +272,89 @@ class DeepSeekOCRPipeline:
         
         return {"valid": True}
     
-    def _clean_grounding_markers(self, text: str) -> str:
-        """Remove grounding markers from DeepSeek OCR output.
+    def _parse_grounded_text(self, text: str) -> List[Dict[str, Any]]:
+        """Parse DeepSeek OCR grounded output into structured blocks.
         
-        DeepSeek OCR outputs text with markers like:
-        <|ref|>type[</ref|><|det|>[coordinates]|</det|>
+        DeepSeek OCR outputs text with grounding markers:
+        <|ref|>type</ref|><|det|>[[coordinates]]</|det|>
+        Content text here
         
-        This function strips these markers to get clean text.
+        This extracts both the content and metadata.
         """
+        blocks = []
+        
         if not text:
-            return text
+            return blocks
         
-        # Remove reference and detection markers
-        # Pattern: <|ref|>type[</ref|><|det|>[x,y,w,h]|</det|>
-        clean_text = re.sub(r'<\|ref\|>[^\[]*\[</ref\|><\|det\|>\[[^\]]*\]\|</det\|>\s*\n?', '', text)
+        # Pattern to match grounded blocks:
+        # <|ref|>type</ref|><|det|>[[x,y,w,h]]</|det|>\nContent
+        pattern = r'<\|ref\|>([^<]+)</ref\|><\|det\|>(\[\[[^\]]+\]\])</\|det\|>\s*\n\s*([^\n<]+(?:\n(?!<\|ref\|>)[^\n<]*)*)'
         
-        # Remove any remaining markers
-        clean_text = re.sub(r'<\|ref\|>[^<]*</ref\|>', '', clean_text)
-        clean_text = re.sub(r'<\|det\|>[^<]*</det\|>', '', clean_text)
+        matches = re.finditer(pattern, text, re.MULTILINE)
         
-        return clean_text.strip()
+        for match in matches:
+            block_type = match.group(1).strip()
+            coordinates_str = match.group(2)
+            content = match.group(3).strip()
+            
+            # Parse coordinates [[x, y, w, h]]
+            try:
+                coords = eval(coordinates_str)
+                if isinstance(coords, list) and len(coords) > 0:
+                    coords = coords[0] if isinstance(coords[0], list) else coords
+            except:
+                coords = [0, 0, 0, 0]
+            
+            # Map block types
+            if block_type in ['title', 'sub_title', 'text', 'paragraph']:
+                blocks.append({
+                    "type": "text",
+                    "content": content,
+                    "coordinates": coords,
+                    "confidence": 0.95
+                })
+            elif block_type == 'table':
+                # Content might be HTML table or markdown
+                if content.startswith('<table>'):
+                    table_data = self._parse_html_table_to_data(content)
+                    complexity_info = self._analyze_table_complexity(table_data)
+                    blocks.append({
+                        "type": "table",
+                        "content": self._format_table_as_text(table_data),
+                        "coordinates": coords,
+                        "confidence": 0.90,
+                        "table_data": table_data,
+                        "table_metadata": {
+                            "rows": complexity_info["num_rows"],
+                            "columns": complexity_info["num_cols"],
+                            "is_complex": complexity_info["is_complex"],
+                            "has_merged_cells": complexity_info["has_irregular_rows"] or complexity_info["empty_cell_ratio"] > 0.1
+                        }
+                    })
+                else:
+                    blocks.append({
+                        "type": "text",
+                        "content": content,
+                        "coordinates": coords,
+                        "confidence": 0.90
+                    })
+            elif block_type in ['image', 'figure', 'image_caption']:
+                blocks.append({
+                    "type": "image",
+                    "content": content,
+                    "coordinates": coords,
+                    "confidence": 0.85
+                })
+            else:
+                # Unknown type, treat as text
+                blocks.append({
+                    "type": "text",
+                    "content": content,
+                    "coordinates": coords,
+                    "confidence": 0.80
+                })
+        
+        return blocks
     
     def _parse_html_table_to_data(self, html_table: str) -> List[List[str]]:
         """Parse HTML table string to 2D array.
@@ -816,10 +879,12 @@ class DeepSeekOCRPipeline:
                         else:
                             markdown_content = str(result) if result is not None else ''
                         
-                        # Clean grounding markers from output
-                        markdown_content = self._clean_grounding_markers(markdown_content)
+                        # Parse grounded output (DeepSeek OCR format)
+                        blocks = self._parse_grounded_text(markdown_content)
                         
-                        blocks = self.parse_markdown_to_blocks(markdown_content)
+                        # If no blocks parsed, fall back to markdown parsing
+                        if not blocks:
+                            blocks = self.parse_markdown_to_blocks(markdown_content)
                     except:
                         # If OCR fails on text image, use direct blocks
                         blocks = [{
@@ -861,10 +926,12 @@ class DeepSeekOCRPipeline:
                     else:
                         markdown_content = str(result) if result is not None else ''
                     
-                    # Clean grounding markers from output
-                    markdown_content = self._clean_grounding_markers(markdown_content)
+                    # Parse grounded output (DeepSeek OCR format)
+                    blocks = self._parse_grounded_text(markdown_content)
                     
-                    blocks = self.parse_markdown_to_blocks(markdown_content)
+                    # If no blocks parsed, fall back to markdown parsing
+                    if not blocks:
+                        blocks = self.parse_markdown_to_blocks(markdown_content)
                     
                     all_pages.append({
                         "page_number": page_num,
