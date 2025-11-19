@@ -2,7 +2,7 @@
 
 An end-to-end document processing pipeline using DeepSeek OCR that extracts and structures content from files containing images, text, and tables into JSON format for downstream consumption.
 
-## What This Does
+## Overview
 
 This pipeline processes document files through DeepSeek OCR to extract structured content. The program analyzes input documents, identifies content blocks (text, tables, images), and outputs parsed data in standardized JSON format suitable for vector storage and data chunking applications.
 
@@ -28,13 +28,13 @@ python deepseek_ocr_pipeline.py input.pdf --model-path ./models/deepseek-ocr
 python deepseek_ocr_pipeline.py input.pdf
 ```
 
-**CLI Options:**
-- `input`: File or directory to process (required)
-- `-o, --output`: Output directory (default: ./ocr_output)
-- `--json-output`: Save results to JSON file
-- `--model-path`: Path to model directory (default: ./models/deepseek-ocr)
-- `--no-flash-attn`: Disable flash attention
-- `--auto-download`: Automatically download model if not found
+### CLI Options
+- `input` - File or directory to process (required)
+- `-o, --output` - Output directory (default: ./ocr_output)
+- `--json-output` - Save results to JSON file
+- `--model-path` - Path to model directory (default: ./deepseek-ocr)
+- `--no-flash-attn` - Disable flash attention
+- `--auto-download` - Automatically download model if not found
 
 ## Output Format
 
@@ -80,9 +80,7 @@ The pipeline outputs JSON with the following schema:
 }
 ```
 
-### Schema Details
-
-**Field Specifications:**
+### Field Specifications
 - `pages`: Array of page objects (one per document page)
 - `page_number`: Integer starting at 1
 - `blocks`: Array of content blocks in reading order
@@ -97,10 +95,10 @@ The pipeline outputs JSON with the following schema:
   - `is_complex`: Boolean indicating complex structure (merged cells, nested tables, etc.)
   - `has_merged_cells`: Boolean indicating presence of merged cells
 
-**Data Ordering:**
+### Data Ordering
 Blocks appear in the original document reading order (top-to-bottom, left-to-right).
 
-**Complex Table Support:**
+### Complex Table Support
 The pipeline detects and handles complex table structures including merged cells, multi-row headers, and nested tables. Complex tables are flagged in `table_metadata.is_complex`.
 
 ## Error Reporting
@@ -129,22 +127,22 @@ Errors are returned in JSON format:
 
 ## System Requirements
 
-**Minimum Hardware:**
+### Hardware
 - NVIDIA GPU with 16GB+ VRAM (A100-40G recommended for production)
 - 32GB+ system RAM
 - CUDA 11.8 compatible GPU
 
-**Software:**
+### Software
 - Python 3.12.9
 - CUDA 11.8
 - Linux or macOS (Windows not officially supported)
 - No admin/root access required for core functionality
 
-**Processing Methods:**
-- .docx files: Uses python-docx library (no admin required)
-- .doc files: Requires LibreOffice or conversion to .docx
-- PDF files: Uses poppler-utils (can be installed locally)
-- Images: Direct processing (no additional tools)
+### Processing Methods
+- .docx files - Uses python-docx library (no admin required)
+- .doc files - Requires LibreOffice or conversion to .docx
+- PDF files - Uses poppler-utils (can be installed locally)
+- Images - Direct processing (no additional tools)
 
 ## Installation
 
@@ -175,11 +173,11 @@ pip install --user -r requirements.txt
 pip install --user flash-attn==2.7.3 --no-build-isolation
 ```
 
-**Note:** If flash-attn installation fails, that's OK! Use the `--no-flash-attn` flag when running the pipeline.
+Note: If flash-attn installation fails, use the `--no-flash-attn` flag when running the pipeline.
 
 ### Step 3: Download Model Files
 
-**Automatic Download (Recommended):**
+Automatic Download (Recommended):
 
 ```bash
 # Run the download script (downloads everything automatically)
@@ -189,7 +187,7 @@ python download_model.py
 # Downloads can be interrupted and resumed
 ```
 
-**Alternative Methods:**
+Alternative Methods:
 
 See [MANUAL_SETUP.md](MANUAL_SETUP.md) for manual download instructions.
 
@@ -207,21 +205,39 @@ git clone https://huggingface.co/deepseek-ai/DeepSeek-OCR .
 python test_model_load.py
 ```
 
-**Note:** LibreOffice is optional. The pipeline uses `python-docx` for .docx files (no admin required). LibreOffice provides better formatting if available but is not required.
+Note: LibreOffice is optional. The pipeline uses `python-docx` for .docx files (no admin required). LibreOffice provides better formatting if available but is not required.
 
 ## Supported File Types
 
 - Images: .jpg, .jpeg, .png, .bmp, .tiff
 - Documents: .pdf, .doc, .docx
 
-## Documentation
+## Project Files
 
-- [download_model.py](download_model.py) - **EASIEST** - Automated model download script
-- [MANUAL_DOWNLOAD_GUIDE.md](MANUAL_DOWNLOAD_GUIDE.md) - Step-by-step guide for manually downloading files via browser
-- [FILES_TO_DOWNLOAD.md](FILES_TO_DOWNLOAD.md) - Complete checklist of required files
-- [MANUAL_SETUP.md](MANUAL_SETUP.md) - Complete setup guide with all download methods
-- [COMPLEX_TABLES.md](COMPLEX_TABLES.md) - Guide for handling complex table structures
-- [test_model_load.py](test_model_load.py) - Verification script for model setup
+### Core Files (Required)
+- `deepseek_ocr_pipeline.py` - Main pipeline script
+- `download_model.py` - Automated model download utility
+- `test_model_load.py` - Model verification script
+- `requirements.txt` - Python dependencies
+- `.gitignore` - Git exclusions
+
+### Documentation (Reference Only)
+- `README.md` - This file
+- `MANUAL_SETUP.md` - Complete setup guide with all download methods
+- `MANUAL_DOWNLOAD_GUIDE.md` - Browser-based manual download guide
+- `FILES_TO_DOWNLOAD.md` - Complete checklist of required model files
+- `COMPLEX_TABLES.md` - Guide for handling complex table structures
+
+### Utility Files (Optional)
+- `organize_files.sh` - Helper script to organize model files into correct directory
+
+### Model Files (Downloaded Separately)
+Model files are downloaded to `./deepseek-ocr/` directory and include:
+- Configuration files (*.json)
+- Model code (*.py)
+- Weight files (*.safetensors, typically 20-25GB total)
+
+Note: Model files are excluded from git repository via `.gitignore`
 
 ## Reference
 
