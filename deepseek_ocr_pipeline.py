@@ -712,7 +712,14 @@ class DeepSeekOCRPipeline:
                             save_results=True,
                             test_compress=True
                         )
-                        markdown_content = result.get('text', '')
+                        # Handle different return types from model.infer()
+                        if isinstance(result, dict):
+                            markdown_content = result.get('text', '')
+                        elif isinstance(result, str):
+                            markdown_content = result
+                        else:
+                            markdown_content = str(result) if result is not None else ''
+                        
                         blocks = self.parse_markdown_to_blocks(markdown_content)
                     except:
                         # If OCR fails on text image, use direct blocks
@@ -747,7 +754,14 @@ class DeepSeekOCRPipeline:
                     )
                     
                     # Parse result into structured format
-                    markdown_content = result.get('text', '')
+                    # model.infer() returns a string directly, not a dict
+                    if isinstance(result, dict):
+                        markdown_content = result.get('text', '')
+                    elif isinstance(result, str):
+                        markdown_content = result
+                    else:
+                        markdown_content = str(result) if result is not None else ''
+                    
                     blocks = self.parse_markdown_to_blocks(markdown_content)
                     
                     all_pages.append({
