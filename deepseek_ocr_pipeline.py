@@ -272,6 +272,27 @@ class DeepSeekOCRPipeline:
         
         return {"valid": True}
     
+    def _clean_grounding_markers(self, text: str) -> str:
+        """Remove grounding markers from DeepSeek OCR output.
+        
+        DeepSeek OCR outputs text with markers like:
+        <|ref|>type[</ref|><|det|>[coordinates]|</det|>
+        
+        This function strips these markers to get clean text.
+        """
+        if not text:
+            return text
+        
+        # Remove reference and detection markers
+        # Pattern: <|ref|>...text...[</ref|><|det|>[coordinates]|</det|>
+        clean_text = re.sub(r'<\|ref\|>.*?\[</ref\|><\|det\|>.*?\|</det\|>\s*', '', text)
+        
+        # Also remove standalone markers
+        clean_text = re.sub(r'<\|ref\|>.*?\|</ref\|>', '', clean_text)
+        clean_text = re.sub(r'<\|det\|>.*?\|</det\|>', '', clean_text)
+        
+        return clean_text.strip()
+    
     def parse_markdown_to_blocks(self, markdown_text: str, coordinates: List = None) -> List[Dict[str, Any]]:
         """Parse markdown output into structured blocks with enhanced table support."""
         blocks = []
@@ -720,6 +741,9 @@ class DeepSeekOCRPipeline:
                         else:
                             markdown_content = str(result) if result is not None else ''
                         
+                        # Clean grounding markers from output
+                        markdown_content = self._clean_grounding_markers(markdown_content)
+                        
                         blocks = self.parse_markdown_to_blocks(markdown_content)
                     except:
                         # If OCR fails on text image, use direct blocks
@@ -761,6 +785,9 @@ class DeepSeekOCRPipeline:
                         markdown_content = result
                     else:
                         markdown_content = str(result) if result is not None else ''
+                    
+                    # Clean grounding markers from output
+                    markdown_content = self._clean_grounding_markers(markdown_content)
                     
                     blocks = self.parse_markdown_to_blocks(markdown_content)
                     
