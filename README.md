@@ -189,20 +189,14 @@ python download_model.py
 
 Alternative Methods:
 
-See [MANUAL_SETUP.md](MANUAL_SETUP.md) for manual download instructions.
-
 ```bash
 # Option A: Use HuggingFace CLI
 pip install --user huggingface-hub
-huggingface-cli download deepseek-ai/DeepSeek-OCR --local-dir ./models/deepseek-ocr
+huggingface-cli download deepseek-ai/DeepSeek-OCR --local-dir ./deepseek-ocr
 
 # Option B: Clone with Git LFS
-cd models/deepseek-ocr
 git lfs install
-git clone https://huggingface.co/deepseek-ai/DeepSeek-OCR .
-
-# Verify installation
-python test_model_load.py
+git clone https://huggingface.co/deepseek-ai/DeepSeek-OCR ./deepseek-ocr
 ```
 
 Note: LibreOffice is optional. The pipeline uses `python-docx` for .docx files (no admin required). LibreOffice provides better formatting if available but is not required.
@@ -212,24 +206,14 @@ Note: LibreOffice is optional. The pipeline uses `python-docx` for .docx files (
 - Images: .jpg, .jpeg, .png, .bmp, .tiff
 - Documents: .pdf, .doc, .docx
 
-## Project Files
+## Project Structure
 
-### Core Files (Required)
+### Core Files
 - `deepseek_ocr_pipeline.py` - Main pipeline script
 - `download_model.py` - Automated model download utility
-- `test_model_load.py` - Model verification script
 - `requirements.txt` - Python dependencies
+- `README.md` - Documentation
 - `.gitignore` - Git exclusions
-
-### Documentation (Reference Only)
-- `README.md` - This file
-- `MANUAL_SETUP.md` - Complete setup guide with all download methods
-- `MANUAL_DOWNLOAD_GUIDE.md` - Browser-based manual download guide
-- `FILES_TO_DOWNLOAD.md` - Complete checklist of required model files
-- `COMPLEX_TABLES.md` - Guide for handling complex table structures
-
-### Utility Files (Optional)
-- `organize_files.sh` - Helper script to organize model files into correct directory
 
 ### Model Files (Downloaded Separately)
 Model files are downloaded to `./deepseek-ocr/` directory and include:
