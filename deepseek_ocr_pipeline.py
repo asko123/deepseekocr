@@ -57,31 +57,96 @@ class DeepSeekOCRPipeline:
                 'message': f"Model directory not found: {model_path}"
             }
         
-        required_files = [
+        # Essential files (must have)
+        essential_files = [
             'config.json',
             'modeling_deepseekocr.py',
-            'tokenizer_config.json',
-            'preprocessor_config.json'
+            'tokenizer_config.json'
         ]
         
-        missing_files = []
-        for file in required_files:
+        # Optional but recommended files
+        optional_files = [
+            'preprocessor_config.json',
+            'generation_config.json'
+        ]
+        
+        missing_essential = []
+        missing_optional = []
+        
+        for file in essential_files:
             if not (model_dir / file).exists():
-                missing_files.append(file)
+                missing_essential.append(file)
+        
+        for file in optional_files:
+            if not (model_dir / file).exists():
+                missing_optional.append(file)
         
         # Check for safetensors files
         safetensors = list(model_dir.glob("*.safetensors"))
         if not safetensors:
-            missing_files.append("*.safetensors (weight files)")
+            missing_essential.append("*.safetensors (weight files)")
         
-        if missing_files:
+        if missing_essential:
             return {
                 'exists': False,
-                'missing_files': missing_files,
-                'message': f"Missing required files in {model_path}"
+                'missing_files': missing_essential,
+                'missing_optional': missing_optional,
+                'message': f"Missing essential files in {model_path}"
             }
         
-        return {'exists': True, 'missing_files': [], 'message': 'All files present'}
+        return {
+            'exists': True, 
+            'missing_files': [], 
+            'missing_optional': missing_optional,
+            'message': 'All essential files present'
+        }
+    
+    @staticmethod
+    def find_model_directory() -> Optional[str]:
+        """Try to find model directory in common locations.
+        
+        Returns path to model directory if found, None otherwise.
+        """
+        possible_paths = [
+            './deepseek-ocr',           # Default location
+            '.',                         # Current directory (if files dumped here)
+            './models/deepseek-ocr',    # Alternative location
+        ]
+        
+        for path in possible_paths:
+            model_dir = Path(path)
+            if model_dir.exists():
+                # Check if it has key model files
+                has_config = (model_dir / 'config.json').exists()
+                has_model_code = (model_dir / 'modeling_deepseekocr.py').exists()
+                has_weights = len(list(model_dir.glob("*.safetensors"))) > 0
+                
+                if has_config and has_model_code and has_weights:
+                    return str(model_dir)
+        
+        return None
+    
+    @staticmethod
+    def download_missing_file(model_path: str, filename: str) -> bool:
+        """Download a single missing file from HuggingFace.
+        
+        Returns True if successful, False otherwise.
+        """
+        try:
+            from huggingface_hub import hf_hub_download
+            
+            print(f"  Downloading missing file: {filename}")
+            hf_hub_download(
+                repo_id="deepseek-ai/DeepSeek-OCR",
+                filename=filename,
+                local_dir=model_path,
+                local_dir_use_symlinks=False
+            )
+            print(f"  ✓ Downloaded {filename}")
+            return True
+        except Exception as e:
+            print(f"  ✗ Failed to download {filename}: {str(e)}")
+            return False
     
     def __init__(self, model_path: str = './deepseek-ocr', use_flash_attn: bool = True, auto_download: bool = False):
         """Initialize the OCR pipeline with DeepSeek model.
@@ -94,6 +159,13 @@ class DeepSeekOCRPipeline:
             auto_download: If True, automatically download model if not found locally
         """
         try:
+            # Try to find model directory automatically if default path
+            if model_path == './deepseek-ocr':
+                found_path = self.find_model_directory()
+                if found_path:
+                    model_path = found_path
+                    print(f"Found model files in: {model_path}")
+            
             print(f"Loading model from: {model_path}")
             
             # Check if local path exists and has all required files
@@ -101,7 +173,7 @@ class DeepSeekOCRPipeline:
             model_check = self.check_model_files(str(local_path))
             
             if not model_check['exists']:
-                if auto_download and model_path == './deepseek-ocr':
+                if auto_download:
                     print(f"\n⚠ {model_check['message']}")
                     print("Missing files:", model_check['missing_files'])
                     print("\nAttempting automatic download...")
@@ -115,6 +187,8 @@ class DeepSeekOCRPipeline:
                             local_dir_use_symlinks=False
                         )
                         print("✓ Model downloaded successfully")
+                        # Re-check after download
+                        model_check = self.check_model_files(str(local_path))
                     except ImportError:
                         raise RuntimeError(
                             "huggingface_hub not installed. Run: pip install --user huggingface-hub"
@@ -130,9 +204,19 @@ class DeepSeekOCRPipeline:
                     error_msg += "To download the model, run:\n"
                     error_msg += "  python download_model.py\n\n"
                     error_msg += "Or use auto-download:\n"
-                    error_msg += f"  python deepseek_ocr_pipeline.py <file> --auto-download\n"
+                    error_msg += f"  python deepseek_ocr_pipeline.py <file> --auto-download --no-flash-attn\n"
                     error_msg += f"{'='*60}\n"
                     raise RuntimeError(error_msg)
+            
+            # Handle optional missing files
+            if model_check.get('missing_optional'):
+                print(f"\n⚠ Warning: Optional files missing: {', '.join(model_check['missing_optional'])}")
+                print("Attempting to download missing optional files...")
+                
+                for missing_file in model_check['missing_optional']:
+                    self.download_missing_file(str(local_path), missing_file)
+                
+                print()
             
             print("✓ Found local model directory")
             model_location = str(local_path)
