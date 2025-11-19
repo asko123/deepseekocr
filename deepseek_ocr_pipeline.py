@@ -284,24 +284,101 @@ class DeepSeekOCRPipeline:
             return text
         
         # Remove reference and detection markers
-        # Pattern: <|ref|>...text...[</ref|><|det|>[coordinates]|</det|>
-        clean_text = re.sub(r'<\|ref\|>.*?\[</ref\|><\|det\|>.*?\|</det\|>\s*', '', text)
+        # Pattern: <|ref|>type[</ref|><|det|>[x,y,w,h]|</det|>
+        clean_text = re.sub(r'<\|ref\|>[^\[]*\[</ref\|><\|det\|>\[[^\]]*\]\|</det\|>\s*\n?', '', text)
         
-        # Also remove standalone markers
-        clean_text = re.sub(r'<\|ref\|>.*?\|</ref\|>', '', clean_text)
-        clean_text = re.sub(r'<\|det\|>.*?\|</det\|>', '', clean_text)
+        # Remove any remaining markers
+        clean_text = re.sub(r'<\|ref\|>[^<]*</ref\|>', '', clean_text)
+        clean_text = re.sub(r'<\|det\|>[^<]*</det\|>', '', clean_text)
         
         return clean_text.strip()
+    
+    def _parse_html_table_to_data(self, html_table: str) -> List[List[str]]:
+        """Parse HTML table string to 2D array.
+        
+        Input: <table><tr><td>A</td><td>B</td></tr><tr><td>C</td><td>D</td></tr></table>
+        Output: [["A", "B"], ["C", "D"]]
+        """
+        table_data = []
+        
+        # Extract all rows
+        row_pattern = r'<tr>(.*?)</tr>'
+        rows = re.findall(row_pattern, html_table, re.DOTALL)
+        
+        for row in rows:
+            # Extract cells (td or th)
+            cell_pattern = r'<t[dh][^>]*>(.*?)</t[dh]>'
+            cells = re.findall(cell_pattern, row, re.DOTALL)
+            
+            # Clean cell content (remove HTML tags, trim whitespace)
+            clean_cells = []
+            for cell in cells:
+                # Remove any remaining HTML tags
+                clean_cell = re.sub(r'<[^>]+>', '', cell)
+                clean_cell = clean_cell.strip()
+                clean_cells.append(clean_cell)
+            
+            if clean_cells:
+                table_data.append(clean_cells)
+        
+        return table_data
     
     def parse_markdown_to_blocks(self, markdown_text: str, coordinates: List = None) -> List[Dict[str, Any]]:
         """Parse markdown output into structured blocks with enhanced table support."""
         blocks = []
+        
+        # First, extract HTML tables and replace with placeholders
+        html_table_pattern = r'<table>.*?</table>'
+        html_tables = re.findall(html_table_pattern, markdown_text, re.DOTALL)
+        
+        # Replace HTML tables with placeholders
+        for i, html_table in enumerate(html_tables):
+            placeholder = f"__TABLE_PLACEHOLDER_{i}__"
+            markdown_text = markdown_text.replace(html_table, placeholder, 1)
+        
         lines = markdown_text.split('\n')
         current_block = {"type": "text", "content": [], "confidence": 0.95}
         in_table = False
         table_rows = []
         
         for line in lines:
+            # Check for HTML table placeholders
+            if '__TABLE_PLACEHOLDER_' in line:
+                # Save current text block
+                if current_block["content"]:
+                    blocks.append({
+                        "type": current_block["type"],
+                        "content": '\n'.join(current_block["content"]).strip(),
+                        "coordinates": coordinates or [0, 0, 0, 0],
+                        "confidence": current_block["confidence"]
+                    })
+                    current_block = {"type": "text", "content": [], "confidence": 0.95}
+                
+                # Extract table index
+                table_idx = int(re.search(r'__TABLE_PLACEHOLDER_(\d+)__', line).group(1))
+                html_table = html_tables[table_idx]
+                
+                # Parse HTML table
+                table_data = self._parse_html_table_to_data(html_table)
+                if table_data:
+                    complexity_info = self._analyze_table_complexity(table_data)
+                    blocks.append({
+                        "type": "table",
+                        "content": self._format_table_as_text(table_data),
+                        "coordinates": coordinates or [0, 0, 0, 0],
+                        "confidence": 0.90,
+                        "table_data": table_data,
+                        "table_metadata": {
+                            "rows": complexity_info["num_rows"],
+                            "columns": complexity_info["num_cols"],
+                            "is_complex": complexity_info["is_complex"],
+                            "has_merged_cells": complexity_info["has_irregular_rows"] or complexity_info["empty_cell_ratio"] > 0.1
+                        }
+                    })
+                continue
+            
+            # Detect markdown table rows (format: | col1 | col2 |)
+            if line.strip().startswith('|') and line.strip().endswith('|'):
             # Detect table rows (markdown format: | col1 | col2 |)
             if line.strip().startswith('|') and line.strip().endswith('|'):
                 if not in_table:
